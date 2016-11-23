@@ -3,66 +3,87 @@
 import math, cmath
 from PIL import Image
 
-def image_to_cortex_graph(im):
+            
+def get_mapped_pixel(im, src_coord, derived_coord):
+    x,y = derived_coord
+    x_int = math.floor(x)
+    x_frac = x - x_int
+    y_int = math.floor(y)
+    y_frac = y - y_int
+    values = []
+    distances = []
+    if x_int >= 0 and x_int < im.size[0] and y_int >= 0 and y_int < im.size[1]:
+        values.append(im.getpixel((x_int, y_int)))
+        distances.append(math.sqrt((x_frac**2) + (y_frac**2)))
+        if x_int < im.size[0]-1:
+            values.append(im.getpixel((x_int + 1, y_int)))
+            distances.append(math.sqrt(((1 - x_frac)**2) + (y_frac**2)))
+        if y_int < im.size[1]-1:
+            values.append(im.getpixel((x_int, y_int + 1)))
+            distances.append(math.sqrt((x_frac**2) + ((1 - y_frac)**2)))
+        if x_int < im.size[0]-1 and y_int < im.size[1]-1:
+            values.append(im.getpixel((x_int + 1, y_int + 1)))
+            distances.append(math.sqrt(((1 - x_frac)**2) + ((1 - y_frac)**2)))
+        total_distance = sum(distances)
+        if total_distance:
+            channels = []
+            for channel in [0,1,2]:
+                channels.append(round(sum([values[i][channel] *
+                                     (distances[i] / total_distance)
+                                     for i in range(len(values))])))
+            pixel_value = tuple(channels)
+        else:
+            pixel_value = (0,0,0)
+    else:
+        pixel_value = (0,0,0)
+    return pixel_value
+
+
+def combine_with(im, source_weight=0.5):
+    def _combine_with(src_im, src_coord, derived_coord):
+        px1 = src_im.getpixel(src_coord)
+        px2 = get_mapped_pixel(im, None, derived_coord)
+        pixel_value = tuple([round((px1[i] * source_weight) +
+                                  (px2[i] * (1 - source_weight)))
+                             for i in [0,1,2]])
+        return pixel_value
+    return _combine_with
+        
+
+
+def derive_image(im, modifier=get_mapped_pixel):
+    # create a new image for the derived image to be wrtten to
     dest = Image.new("RGB", im.size)
+    # the maximum value of r is the length of the diagonal from the centre of
+    # the image to a corner
     max_r = (math.sqrt(im.size[0]**2 + im.size[1]**2)) / 2
-    max_theta = 2*math.pi
-    theta_values = [t for t in gen_theta(max_theta, im.size[1])]
-    r_values = [r for r in gen_r(max_r, im.size[0])]
-    for y, theta in enumerate(theta_values):
-        print(y)
-        for x, r in enumerate(r_values):
-            xy = cmath.rect(r, theta)
-            src_x  = round(xy.real + (im.size[0]/2))
-            src_y = round(xy.imag + (im.size[1]/2))
-            if src_x >= im.size[0] or src_y >= im.size[1] or src_x < 0 or src_y < 0:
-                pixel_val = (0,0,0)
-            else:
-                pixel_val = im.getpixel((src_x, src_y))
-            dest.putpixel((x,y), pixel_val)
-    return dest 
-    
-def cortex_graph_to_image(im):
-    dest = Image.new("RGB", im.size)
-    max_r = (math.sqrt(im.size[0]**2 + im.size[1]**2)) / 2
+    # the maximum value of phi is the constant 2*pi
+    max_phi = 2 * math.pi
     r_step = max_r / im.size[0]
-    max_theta = 2*math.pi
-    theta_step = max_theta / im.size[1]
+    phi_step = max_phi / im.size[1]
+    data = []
     for y in range(im.size[1]):
-        print(y)
         for x in range(im.size[0]):
             xy = complex(x - im.size[0]/2, y - im.size[1]/2)
-            r, theta = cmath.polar(xy)
-            if theta < 0:
-                theta = (2*math.pi) + theta
-            r = round(r / r_step)
-            theta = round(theta / theta_step)
-            src_x = abs(r)
-            src_y = abs(theta)
-            if src_x >= im.size[0] or src_y >= im.size[1] or src_x < 0 or src_y < 0:
-                pixel_val = (0,0,0)
-            else:
-                pixel_val = im.getpixel((src_x, src_y))
-            dest.putpixel((x,y), pixel_val)
-    return dest 
-            
-            
+            r, phi = cmath.polar(xy)
+            if phi < 0:
+                phi = (2*math.pi) + phi
+            deriv_x = r / r_step
+            deriv_y = phi / phi_step
+            data.append(modifier(im, (x,y), (deriv_x, deriv_y)))
+    dest.putdata(data)
+    return dest
     
-def gen_r(max_r, size):
-    step = (max_r / size)
-    for i in range(size):
-        yield (i * step)
- 
-def gen_theta(max_theta, size):
-    step = max_theta/size
-    for i in range(size):
-        yield (step*i)
-        
+
+
 if __name__ == "__main__":
     import sys
     src_path = sys.argv[1]
-    dest_path = sys.argv[2]
+    combin_path = sys.argv[2]
+    dest_path = sys.argv[3]
     src_im = Image.open(src_path)
-    dest_im = cortex_graph_to_image(src_im)
+    combin_im = Image.open(combin_path)
+    #dest_im = cortex_graph_to_image(src_im)
     #dest_im = image_to_cortex_graph(src_im)
+    dest_im = derive_image(src_im, combine_with(combin_im, 0.9))
     dest_im.save(dest_path)
