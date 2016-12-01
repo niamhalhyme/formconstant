@@ -6,9 +6,9 @@ from PIL import Image
             
 def get_mapped_pixel(im, src_coord, derived_coord):
     x,y = derived_coord
-    x_int = math.floor(x)
+    x_int = int(x)
     x_frac = x - x_int
-    y_int = math.floor(y)
+    y_int = int(y)
     y_frac = y - y_int
     values = []
     distances = []
@@ -56,10 +56,10 @@ def derive_image(im, modifier=get_mapped_pixel):
     dest = Image.new("RGB", im.size)
     # the maximum value of r is the length of the diagonal from the centre of
     # the image to a corner
-    max_r = (math.sqrt(im.size[0]**2 + im.size[1]**2)) / 2
+    max_r = math.log1p(math.sqrt(im.size[0]**2 + im.size[1]**2) / 2)
     # the maximum value of phi is the constant 2*pi
     max_phi = 2 * math.pi
-    r_step = max_r / im.size[0]
+    #r_step = max_r / im.size[0]
     phi_step = max_phi / im.size[1]
     data = []
     for y in range(im.size[1]):
@@ -68,8 +68,8 @@ def derive_image(im, modifier=get_mapped_pixel):
             r, phi = cmath.polar(xy)
             if phi < 0:
                 phi = (2*math.pi) + phi
-            deriv_x = r / r_step
-            deriv_y = phi / phi_step
+            deriv_x = (math.log1p(r)/max_r) * im.size[0]
+            deriv_y = (phi/max_phi) * im.size[1]
             data.append(modifier(im, (x,y), (deriv_x, deriv_y)))
     dest.putdata(data)
     return dest
@@ -79,11 +79,10 @@ def derive_image(im, modifier=get_mapped_pixel):
 if __name__ == "__main__":
     import sys
     src_path = sys.argv[1]
-    combin_path = sys.argv[2]
-    dest_path = sys.argv[3]
+#    combin_path = sys.argv[2]
+    dest_path = sys.argv[2]
     src_im = Image.open(src_path)
-    combin_im = Image.open(combin_path)
-    #dest_im = cortex_graph_to_image(src_im)
-    #dest_im = image_to_cortex_graph(src_im)
-    dest_im = derive_image(src_im, combine_with(combin_im, 0.9))
+#    combin_im = Image.open(combin_path)
+    #dest_im = derive_image(src_im, combine_with(combin_im, 0.1))
+    dest_im = derive_image(src_im)
     dest_im.save(dest_path)
