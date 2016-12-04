@@ -23,7 +23,6 @@ def create_image(size, func, prefunc=None, freq=1, phase=0):
     dest.putdata(data)
     return dest
 
-
 def rotate(x,y,angle):
     cos_theta = math.cos(angle)
     sin_theta = math.sin(angle)
@@ -71,21 +70,40 @@ functions = {f.__name__: f for f in [
 }
 
 
-def random_greyscale_image(size):
+def generate_greyscale_image(size, func, axis, freq, prefunc, phase):
+    return create_image(size, func, prefunc, freq, phase)
+    
+def random_greyscale_args(size):
     func = functions[random.choice(list(functions.keys()))]
     axis = func.axis
-    freq = random.randrange(1,round(min(size)/8))
+    freq = random.randrange(1,min([64,round(min(size)/8)]))
     prefunc = shear_m(random.randrange(0,freq+1) * random.choice([-1,1]), axis)
     phase = random.random()
-    im = create_image(size, func, prefunc, freq, phase)
-    return im
+    return (size, func, axis, freq, prefunc, phase)
+
+def random_greyscale_image(size):    
+    return generate_greyscale_image(*random_greyscale_args(size))
     
-def random_image(size):
+def random_image(size, mode="RGB"):
     r = random_greyscale_image(size)
     g = random_greyscale_image(size)
     b = random_greyscale_image(size)
-    return Image.merge("RGB", (r,g,b))
+    return Image.merge(mode, (r,g,b))
     
+def random_sequence(size, number, mode="RGB"):
+    r_args = random_greyscale_args(size)
+    g_args = random_greyscale_args(size)
+    b_args = random_greyscale_args(size)
+    phase_dir = [random.choice([-1,1]) for _ in range(3)]
+    for i in range(number):
+        phase_add = (i / number)
+        r_im = generate_greyscale_image(*r_args[:-1] + ((r_args[-1] + (phase_add*phase_dir[0]))%1,))
+        g_im = generate_greyscale_image(*g_args[:-1] + ((g_args[-1] + (phase_add*phase_dir[1]))%1,))
+        b_im = generate_greyscale_image(*b_args[:-1] + ((b_args[-1] + (phase_add*phase_dir[2]))%1,))
+        merged = Image.merge(mode, (r_im, g_im, b_im))
+        yield merged
+
+
 if __name__ == "__main__":
     import sys
     size = (int(sys.argv[1]), int(sys.argv[2]))

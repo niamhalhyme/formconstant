@@ -2,4 +2,5 @@
 *.jpg
 *.py~
 *.gif
+__pycache__/
 
