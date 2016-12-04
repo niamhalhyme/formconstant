@@ -6,36 +6,35 @@ from PIL import Image
             
 def get_mapped_pixel(im, src_coord, derived_coord):
     x,y = derived_coord
-    x_int = int(x)
+    x = x % im.size[0]
+    y = y % im.size[0]
+    x_int = int(x) 
     x_frac = x - x_int
     y_int = int(y)
     y_frac = y - y_int
     values = []
     distances = []
-    if x_int >= 0 and x_int < im.size[0] and y_int >= 0 and y_int < im.size[1]:
-        values.append(im.getpixel((x_int, y_int)))
-        distances.append(math.sqrt((x_frac**2) + (y_frac**2)))
-        if x_int < im.size[0]-1:
-            values.append(im.getpixel((x_int + 1, y_int)))
-            distances.append(math.sqrt(((1 - x_frac)**2) + (y_frac**2)))
-        if y_int < im.size[1]-1:
-            values.append(im.getpixel((x_int, y_int + 1)))
-            distances.append(math.sqrt((x_frac**2) + ((1 - y_frac)**2)))
-        if x_int < im.size[0]-1 and y_int < im.size[1]-1:
-            values.append(im.getpixel((x_int + 1, y_int + 1)))
-            distances.append(math.sqrt(((1 - x_frac)**2) + ((1 - y_frac)**2)))
-        total_distance = sum(distances)
-        if total_distance:
-            channels = []
-            for channel in [0,1,2]:
-                channels.append(round(sum([values[i][channel] *
-                                     (distances[i] / total_distance)
-                                     for i in range(len(values))])))
-            pixel_value = tuple(channels)
-        else:
-            pixel_value = (0,0,0)
+#if x_int >= 0 and x_int < im.size[0] and y_int >= 0 and y_int < im.size[1]:
+    values.append(im.getpixel((x_int, y_int)))
+    distances.append(math.sqrt((x_frac**2) + (y_frac**2)))
+    values.append(im.getpixel(((x_int + 1) % im.size[0], y_int)))
+    distances.append(math.sqrt(((1 - x_frac)**2) + (y_frac**2)))
+    values.append(im.getpixel((x_int, (y_int + 1) % im.size[1])))
+    distances.append(math.sqrt((x_frac**2) + ((1 - y_frac)**2)))
+    values.append(im.getpixel(((x_int + 1) % im.size[0], (y_int + 1) % im.size[1])))
+    distances.append(math.sqrt(((1 - x_frac)**2) + ((1 - y_frac)**2)))
+    total_distance = sum(distances)
+    if total_distance:
+        channels = []
+        for channel in [0,1,2]:
+            channels.append(round(sum([values[i][channel] *
+                                 (distances[i] / total_distance)
+                                 for i in range(len(values))])))
+        pixel_value = tuple(channels)
     else:
         pixel_value = (0,0,0)
+#else:
+#    pixel_value = (0,0,0)
     return pixel_value
 
 
