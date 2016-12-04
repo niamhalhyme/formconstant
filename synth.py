@@ -3,6 +3,7 @@
 import math
 import random
 from PIL import Image
+from collections import namedtuple
 
 def create_image(size, func, prefunc=None, freq=1, phase=0):
     dest = Image.new("L", size)
@@ -69,9 +70,10 @@ functions = {f.__name__: f for f in [
     ]
 }
 
-
 def generate_greyscale_image(size, func, axis, freq, prefunc, phase):
     return create_image(size, func, prefunc, freq, phase)
+ 
+GreyscaleArgs = namedtuple("GreyscaleArgs", ["size", "func", "axis", "freq", "prefunc", "phase"])
     
 def random_greyscale_args(size):
     func = functions[random.choice(list(functions.keys()))]
@@ -79,7 +81,7 @@ def random_greyscale_args(size):
     freq = random.randrange(1,min([64,round(min(size)/8)]))
     prefunc = shear_m(random.randrange(0,freq+1) * random.choice([-1,1]), axis)
     phase = random.random()
-    return (size, func, axis, freq, prefunc, phase)
+    return GreyscaleArgs(size, func, axis, freq, prefunc, phase)
 
 def random_greyscale_image(size):    
     return generate_greyscale_image(*random_greyscale_args(size))
@@ -91,16 +93,21 @@ def random_image(size, mode="RGB"):
     return Image.merge(mode, (r,g,b))
     
 def random_sequence(size, number, mode="RGB"):
-    r_args = random_greyscale_args(size)
-    g_args = random_greyscale_args(size)
+    channel_args = [random_greyscale_args(size) for _ in range(3)]
     b_args = random_greyscale_args(size)
-    phase_dir = [random.choice([-1,1]) for _ in range(3)]
+    phase_dir = [random.choice([-1,1]) for _ in range(len(channel_args))]
+    info = [mode]
+    info.extend(["c %d: %s" % (i, "/".join([str(arg) if not hasattr(arg, "__name__") else str(arg.__name__)
+                                            for arg in channel_args[i] + (phase_dir[i],)]))
+            for i in range(len(channel_args))])
     for i in range(number):
         phase_add = (i / number)
-        r_im = generate_greyscale_image(*r_args[:-1] + ((r_args[-1] + (phase_add*phase_dir[0]))%1,))
-        g_im = generate_greyscale_image(*g_args[:-1] + ((g_args[-1] + (phase_add*phase_dir[1]))%1,))
-        b_im = generate_greyscale_image(*b_args[:-1] + ((b_args[-1] + (phase_add*phase_dir[2]))%1,))
-        merged = Image.merge(mode, (r_im, g_im, b_im))
+        channels = [generate_greyscale_image(*channel_args[i][:-1] +
+                                             ((channel_args[i][-1] +
+                                             (phase_add*phase_dir[i]))%1,))
+                    for i in range(len(channel_args))]
+        merged = Image.merge(mode, channels)
+        merged.info["comment"] = "\n".join(info).encode()
         yield merged
 
 

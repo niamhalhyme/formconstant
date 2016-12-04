@@ -71,6 +71,10 @@ def derive_image(im, modifier=get_mapped_pixel):
             deriv_y = (phi/max_phi) * im.size[1]
             data.append(modifier(im, (x,y), (deriv_x, deriv_y)))
     dest.putdata(data)
+    try:
+        dest.info["comment"] = im.info["comment"]
+    except KeyError:
+        pass
     return dest
     
 
