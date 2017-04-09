@@ -3,7 +3,6 @@
 import math
 import cmath
 import argparse
-import time
 from PIL import Image
 
             
@@ -95,8 +94,4 @@ if __name__ == "__main__":
     parser.add_argument("source", help="source path")
     parser.add_argument("destination", help="destination path")
     args = parser.parse_args()
-    start = time.time()
     derive_image(Image.open(args.source)).save(args.destination)
-    end = time.time()
-    print(end - start)
-
