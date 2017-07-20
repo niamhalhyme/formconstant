@@ -71,12 +71,12 @@ functions = {f.__name__: f for f in [
                                 (sawtooth, 1)]]}
 
 
-def generate_greyscale_image(size, func, freq, prefunc, phase):
+def generate_greyscale_image(size, func, freq, prefunc, phase, phase_adjust):
     """
     Return an image of the given size plotting the given function called with
     the given arguments.
     """
-    return create_image(size, func, prefunc, freq, phase)
+    return create_image(size, func, prefunc, freq, phase_adjust(phase))
  
 GreyscaleArgs = namedtuple("GreyscaleArgs",
                            ["size", "func", "freq", "prefunc", "phase"])
@@ -108,6 +108,10 @@ modes = {
     "CMYK": 4
 }
 
+phase_adjustments = [
+    lambda p: p,
+]
+
 def create_image_from_spec(size, mode, channel_args):
     channels = [generate_greyscale_image(*channel_arg)
                 for channel_arg in channel_args]
@@ -138,18 +142,22 @@ def random_sequence(size, number, mode=None):
     """
     if mode is None:
         mode = random.choice(list(modes.keys()))
-    number_of_channels = modes[mode]   
+    number_of_channels = modes[mode]
+    phase_adjusts = [random.choice(phase_adjustments)
+                     for _ in range(number_of_channels)]
     channel_args = [random_greyscale_args(size)
                     for _ in range(number_of_channels)]
-    yield from create_sequence(size, number, mode, channel_args)
+    yield from create_sequence(size, number, mode, channel_args, phase_adjusts)
                     
-def create_sequence(size, number, mode, channel_args):
+def create_sequence(size, number, mode, channel_args, phase_adjusts=None):
     """
     Yield Image objects of given size and mode in a sequence with length given
     by number. The phase is varied producing a sequence that should loop. The
     wave arguments for each channel are provided by channel_args.
     """
     number_of_channels = len(channel_args)
+    if phase_adjusts is None:
+        phase_adjusts = [(lambda p: p) for _ in range(number_of_channels)]
     phase_dir = [random.choice([-1,1]) for _ in range(len(channel_args))]
     info = [mode]
     info.extend(["c %d: %s" %
@@ -160,10 +168,11 @@ def create_sequence(size, number, mode, channel_args):
              for arg in channel_args[i] + (phase_dir[i],)]))
          for i in range(len(channel_args))])
     for i in range(number):
-        phase_add = (i / number)
-        channels = [generate_greyscale_image(*channel_args[i][:-1] +
-                                             ((channel_args[i][-1] +
-                                             (phase_add*phase_dir[i]))%1,))
+        phase = (1 / number) * i
+        channels = [generate_greyscale_image(
+                     *channel_args[i][:-1] +
+                     (channel_args[i][-1] + (phase*phase_dir[i]) % 1,
+                      phase_adjusts[i]))
                     for i in range(number_of_channels)]
         merged = Image.merge(mode, channels).convert("RGB")
         merged.info["comment"] = "\n".join(info).encode()
@@ -206,7 +215,7 @@ def parse_channel(s):
         raise argparse.ArgumentTypeError(
             "Unable to parse channel phase field: %s" % (fields[3],))
     return (func, freq, shear, phase)
-    
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -246,13 +255,25 @@ if __name__ == "__main__":
                 spec[3]))
         if args.number is not None:
             z = len(str(args.number))
+            if os.path.splitext(args.destination)[1] == ".gif":
+                seq = []
+                anim = True
+            else:
+                anim = False
             for i, image in enumerate(create_sequence(
                                         (args.width, args.height),
                                         args.number,
                                         args.mode,
                                         greyscale_args)):
-                path, ext = os.path.splitext(args.destination)
-                image.save(path + "_" + str(i).zfill(z) + ext)
+                if not anim:
+                    path, ext = os.path.splitext(args.destination)
+                    image.save(path + "_" + str(i).zfill(z) + ext)
+                else:
+                    seq.append(image)
+            if anim:
+                im = seq.pop(0)
+                im.save(args.destination, save_all=True,
+                    duration=1000/24, loop=0, append_images=seq)
         else:
             im = create_image_from_spec(
                 (args.width, args.height), args.mode, greyscale_args)
@@ -263,11 +284,24 @@ if __name__ == "__main__":
         else:
             mode = args.mode
         if args.number is not None:
+            if os.path.splitext(args.destination)[1] == ".gif":
+                seq = []
+                anim = True
+            else:
+                anim = False
             z = len(str(args.number))
             for i, image in enumerate(random_sequence((args.width, args.height),
                                           args.number,
                                           mode)):
-                path, ext = os.path.splitext(args.destination)
-                image.save(path + "_" + str(i).zfill(z) + ext)
-        im = random_image((args.width, args.height), mode)
-        im.save(args.destination)
+                if not anim:
+                    path, ext = os.path.splitext(args.destination)
+                    image.save(path + "_" + str(i).zfill(z) + ext)
+                else:
+                    seq.append(image)
+            if anim:
+                im = seq.pop(0)
+                im.save(args.destination, save_all=True,
+                    duration=1000/24, loop=0, append_images=seq)
+        else:
+            im = random_image((args.width, args.height), mode)
+            im.save(args.destination)
